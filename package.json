@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
   },
   "keywords": [],
   "author": "",
@@ -11,6 +12,8 @@
   "description": "",
   "dependencies": {
     "@google-cloud/functions": "^4.2.1",
-    "@google-cloud/functions-framework": "^4.0.0"
+    "@google-cloud/functions-framework": "^4.0.0",
+    "firebase-admin": "^13.5.0",
+    "firebase-functions": "^6.5.0"
   }
 }
