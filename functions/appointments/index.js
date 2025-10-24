@@ -1,9 +1,23 @@
 const { onRequest } = require("firebase-functions/v2/https");
+const appointmentService = require("../services/appointments");
 
-exports.createAppointment = onRequest({ region: "us-central1" }, (req, res) => {
-  res.status(201).send({ message: "Agendamento criado com sucesso!" });
-});
+const getBarberAppointments = onRequest(
+  { region: "us-central1" },
+  async (req, res) => {
+    try {
+      const { barberId } = req.query;
+      const appointments = await appointmentService.getAllAppointmentsByBarber(
+        barberId
+      );
 
-exports.listAppointments = onRequest({ region: "us-central1" }, (req, res) => {
-  res.status(200).send([{ id: "1", date: "2025-10-15" }]);
-});
+      res.status(200).send(appointments);
+    } catch (error) {
+      console.error("Erro ao buscar todos os agendamentos:", error);
+      throw new Error("Erro ao carregar agendamentos. Tente novamente.");
+    }
+  }
+);
+
+module.exports = {
+  getBarberAppointments,
+};
