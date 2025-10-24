@@ -1,8 +1,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
-const { defineSecret } = require("firebase-functions/params");
 const clientService = require("../services/client");
 const barberService = require("../services/barber");
-const { getStripe } = require("../lib/stripe");
+const { getStripe, stripeSecretKey, endpointSecret } = require("../lib/stripe");
 
 const handleCheckoutSessionCompleted = onRequest(async (req, res) => {
   if (req.method !== "POST") {
@@ -120,63 +119,69 @@ const handleCancelPlan = onRequest(async (req, res) => {
     stripeCustomerId
   );
 
-  console.log(client);
-
-  const barberId = client.selectedBarbersId[0];
-
-  console.log("Barber ID found:", barberId);
-
-  await barberService.removeClientFromBarber(barberId, client.uid);
-
-  console.log("Client found:", client);
-
   if (!client) {
     return res.status(404).send("Client not found");
   }
 
+  console.log("Client found:", client);
+
+  const barberId = client?.selectedBarbersId[0];
+
+  console.log("Barber ID found:", barberId);
+
+  if (barberId) {
+    await barberService.removeClientFromBarber(barberId, client.uid);
+  }
+
   console.log("Updating client to cancel plan:", client.uid);
+
   await clientService.updateClient(client.uid, {
     plan: "Não Selecionado",
     planExpiryDate: null,
     stripeSubscriptionId: null,
     paymentStatus: "inactive",
+    selectedBarbersId: [],
   });
 
   res.status(200).send("Webhook processed");
 });
 
-const webhookHandlers = onRequest(async (req, res) => {
-  console.log("Received webhook:", req.body);
-  let event = req.body;
-  const endpointSecret = defineSecret("STRIPE_ENDPOINT_SECRET");
-  const stripe = getStripe();
+const webhookHandlers = onRequest(
+  { secrets: [stripeSecretKey, endpointSecret] },
+  async (req, res) => {
+    console.log("Received webhook:", req.body);
+    let event = req.body;
+    console.log("Header stripe-signature:", req.headers["stripe-signature"]);
+    console.log("Headers", JSON.stringify(req.headers, null, 2));
+    const stripe = getStripe(stripeSecretKey);
 
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.rawBody,
-      req.headers["stripe-signature"],
-      endpointSecret
-    );
-  } catch (error) {
-    res.status(400).send(`Webhook Error: ${error.message}`);
-    return;
-  }
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.rawBody,
+        req.headers["stripe-signature"],
+        endpointSecret.value()
+      );
+    } catch (error) {
+      res.status(400).send(`Webhook Error: ${error.message}`);
+      return;
+    }
 
-  switch (event.type) {
-    case "checkout.session.completed":
-      await handleCheckoutSessionCompleted(req, res);
-      break;
-    case "customer.subscription.created":
-    case "customer.subscription.updated":
-      await handleSubscriptionSessionCompleted(req, res);
-      break;
-    case "customer.subscription.deleted":
-      await handleCancelPlan(req, res);
-      break;
-    default:
-      res.status(200).send("Event type not handled");
+    switch (event.type) {
+      case "checkout.session.completed":
+        await handleCheckoutSessionCompleted(req, res);
+        break;
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+        await handleSubscriptionSessionCompleted(req, res);
+        break;
+      case "customer.subscription.deleted":
+        await handleCancelPlan(req, res);
+        break;
+      default:
+        res.status(200).send("Event type not handled");
+    }
   }
-});
+);
 
 module.exports = {
   webhookHandlers,

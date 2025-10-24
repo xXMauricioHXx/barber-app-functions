@@ -41,14 +41,11 @@ const barberService = {
 
   async removeClientFromBarber(barberId, clientId) {
     try {
-      const clientRef = doc(
-        db,
-        collectionSchema.barbers.name,
-        barberId,
-        collectionSchema.barbers.subCollections.clients.name,
-        clientId
-      );
-      await deleteDoc(clientRef);
+      const db = admin.firestore();
+      const barberRef = db.collection("barbers").doc(barberId);
+      const clientRef = barberRef.collection("clients").doc(clientId);
+
+      await clientRef.delete();
     } catch (error) {
       console.error("Erro ao remover cliente da barbearia:", error);
       throw new Error("Erro ao remover cliente da barbearia. Tente novamente.");
